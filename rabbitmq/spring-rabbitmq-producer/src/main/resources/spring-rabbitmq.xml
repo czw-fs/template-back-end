@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+
+<!--    引入外部属性文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+<!--
+        配置connectionFactory
+        publisher-confirms属性:当值为true是开启确认模式
+        publisher-returns: 当值为true是开启回退模式
+    -->
+    <rabbit:connection-factory host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               virtual-host="${rabbitmq.virtual-host}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                                id="connectionFactory"
+                                publisher-confirms="true"
+                                publisher-returns="true"/>
+
+<!--    配合RabbitAdmin对象,用于管理交换机和队列-->
+        <rabbit:admin connection-factory="connectionFactory"/>
+
+<!--    声明队列-->
+    <!--    声明一个简单模式的队列-->
+    <!--
+    不需要绑定交换机，使用默认的交换机，默认交换机的类型是direct，名字为"",
+    路由key为队列的名字
+    auto-decLare属性:当值设置为true时不存在该队列则自动创建
+    -->
+    <rabbit:queue id="test_spring_simple_queue" name="spring_simple_queue" auto-declare="true"></rabbit:queue>
+
+<!--    声明测试广播模式的队列-->
+    <rabbit:queue id="test_spring_fanout_queue1" name="spring_fanout_queue1"></rabbit:queue>
+    <rabbit:queue id="test_spring_fanout_queue2" name="spring_fanout_queue2"></rabbit:queue>
+
+<!--    声明通配符模式的队列-->
+    <rabbit:queue id="test_spring_topic_queue1" name="spring_topic_queue1"></rabbit:queue>
+    <rabbit:queue id="test_spring_topic_queue2" name="spring_topic_queue2"></rabbit:queue>
+
+<!--    声明测试确认模式和退回模式的队列(路由模式),测试消息的手动确认-->
+    <rabbit:queue id="test_spring_direct_queue1" name="spring_direct_queue1"></rabbit:queue>
+    <rabbit:queue id="test_spring_direct_queue2" name="spring_direct_queue2"></rabbit:queue>
+
+    <!--
+       死信队列：
+           1. 声明正常的队列(test_queue_dlx)和交换机(test_exchange_dlx)
+           2. 声明死信队列(queue_dlx)和死信交换机(exchange_dlx)
+           3. 正常队列绑定死信交换机
+               设置两个参数：
+                   * x-dead-letter-exchange：死信交换机名称
+                   * x-dead-letter-routing-key：发送给死信交换机的routingkey
+   -->
+
+    <!--
+        1. 声明正常的队列(test_queue_dlx)和交换机(test_exchange_dlx)
+    -->
+    <rabbit:queue name="test_queue_dlx" id="test_queue_dlx">
+        <!--3. 正常队列绑定死信交换机-->
+        <rabbit:queue-arguments>
+            <!--3.1 x-dead-letter-exchange：死信交换机名称-->
+            <entry key="x-dead-letter-exchange" value="exchange_dlx"/>
+            <!--3.2 x-dead-letter-routing-key：发送给死信交换机的routingkey-->
+            <entry key="x-dead-letter-routing-key" value="dlx.hehe"></entry>
+            <!--4.1 设置队列的过期时间 ttl-->
+            <entry key="x-message-ttl" value="10000" value-type="java.lang.Integer"/>
+            <!--4.2 设置队列的长度限制 max-length -->
+            <entry key="x-max-length" value="10" value-type="java.lang.Integer"/>
+        </rabbit:queue-arguments>
+    </rabbit:queue>
+    <!--正常交换机-->
+    <rabbit:topic-exchange name="test_exchange_dlx">
+        <rabbit:bindings>
+            <rabbit:binding pattern="test.dlx.#" queue="test_queue_dlx"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+    <!--
+       2. 声明死信队列(queue_dlx)和死信交换机(exchange_dlx)
+   -->
+    <rabbit:queue name="queue_dlx" id="queue_dlx"></rabbit:queue>
+    <rabbit:topic-exchange name="exchange_dlx">
+        <rabbit:bindings>
+            <rabbit:binding pattern="dlx.#" queue="queue_dlx"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+
+<!--    声明交换机-->
+<!--    声明广播模式的交换机-->
+    <rabbit:fanout-exchange name="spring_fanout_exchange" id="test_spring_fanout_exchange">
+<!--    绑定队列-->
+<!--        queue病性:指定绑定的队列，值时队列的id属性值-->
+        <rabbit:bindings>
+            <rabbit:binding queue="test_spring_fanout_queue1"></rabbit:binding>
+            <rabbit:binding queue="test_spring_fanout_queue2"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+<!--    绑定topic模式的队列和交换机-->
+    <rabbit:topic-exchange name="spring_topic_exchange">
+<!--        绑定队列-->
+        <rabbit:bindings>
+<!--            pattern:绑定路由key-->
+<!--            记住此处的queue要引用队列的id-->
+            <rabbit:binding pattern="fs.*" queue="test_spring_topic_queue1"></rabbit:binding>
+            <rabbit:binding pattern="#.fs" queue="test_spring_topic_queue2"></rabbit:binding>
+        </rabbit:bindings>
+
+    </rabbit:topic-exchange>
+
+    <!--    声明测试确认模式和退回模式(路由模式)的交换机-->
+    <rabbit:direct-exchange name="spring_direct_exchange">
+<!--        绑定队列-->
+        <rabbit:bindings>
+<!--
+            key:指定路由key
+            queue:队列的id属性值
+-->
+            <rabbit:binding key="confirm" queue="test_spring_direct_queue1"></rabbit:binding>
+            <rabbit:binding key="confirm" queue="test_spring_direct_queue2"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:direct-exchange>
+
+    <!--    配置RabbitTemplate对象,用来发送消息-->
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"></rabbit:template>
+
+
+
+</beans>

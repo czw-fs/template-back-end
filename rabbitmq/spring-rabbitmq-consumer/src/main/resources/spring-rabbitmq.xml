@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+
+    <!--    引入外部属性文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!--    配置connectionFactory-->
+    <rabbit:connection-factory host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               virtual-host="${rabbitmq.virtual-host}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               id="connectionFactory"/>
+
+<!--    配置简单模式队列的监听器-->
+    <bean class="com.example.spring.rabbitmq.listener.SimpleListener" id="simpleListener"></bean>
+
+<!--    配置监听广播模式队列的监听器-->
+    <bean class="com.example.spring.rabbitmq.listener.FanoutListener1" id="fanoutListener1"></bean>
+    <bean class="com.example.spring.rabbitmq.listener.FanoutListener2" id="fanoutListener2"></bean>
+
+<!--    配置topic模式的队列监听器-->
+    <bean class="com.example.spring.rabbitmq.listener.TopicListener1" id="topicListener1"></bean>
+    <bean class="com.example.spring.rabbitmq.listener.TopicListener2" id="topicListener2"></bean>
+
+<!--    配置监听定向模式队列的监听器，用来测试消息的手动确认-->
+    <bean class="com.example.spring.rabbitmq.listener.AckListener" id="ackListener"></bean>
+
+<!--    测试消费者拒接消费消息的监听器(确认消息时出错就会拒收)-->
+    <bean class="com.example.spring.rabbitmq.listener.DlxListener" id="dlxListener"></bean>
+
+    <!--
+            配置监听器容器
+            acknowLedge属性:设置消费者确认消息的方式，当值是manual时需要手动确认
+            prefetch属性:设置每次从队列中取出几条消息,但是每次是确认一个,保证Unacked每次取所设置的次数个
+    -->
+    <rabbit:listener-container connection-factory="connectionFactory" acknowledge="manual" prefetch="5">
+<!--      配置简单模式队列的监听器
+          queue-names属性:指定消费者消费的队列的名字
+-->
+        <rabbit:listener ref="simpleListener" queue-names="spring_simple_queue"></rabbit:listener>
+
+<!--        配置监听广播模式队列的监听器-->
+        <rabbit:listener ref="fanoutListener1" queue-names="spring_fanout_queue1"></rabbit:listener>
+        <rabbit:listener ref="fanoutListener2" queue-names="spring_fanout_queue2"></rabbit:listener>
+
+<!--        配置topic模式的队列监听器-->
+        <rabbit:listener ref="topicListener1" queue-names="spring_topic_queue1"></rabbit:listener>
+        <rabbit:listener ref="topicListener2" queue-names="spring_topic_queue2"></rabbit:listener>
+
+<!--        配置监听定向模式队列的监听器，用来测试消息的手动确认-->
+        <rabbit:listener ref="ackListener" queue-names="spring_direct_queue2"></rabbit:listener>
+
+<!--        测试消费者拒接消费消息的监听器(确认消息时出错就会拒收)-->
+        <rabbit:listener ref="dlxListener" queue-names="test_queue_dlx"></rabbit:listener>
+    </rabbit:listener-container>
+</beans>
